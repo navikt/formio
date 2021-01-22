@@ -205,9 +205,11 @@ module.exports = (router) => {
             }, req), (err, actionItem) => {
               // Mongoose has issues if you call "save" too frequently on the same item. We need to wait till the previous
               // save is complete before calling again.
-              let lastSavePromise = Promise.resolve();
+              if (!req.actionItemPromise) {
+                req.actionItemPromise = Promise.resolve();
+              }
               const setActionItemMessage = (message, data = {}, state = null) => {
-                lastSavePromise.then(() => {
+                req.actionItemPromise = req.actionItemPromise.then(() => {
                   actionItem.messages.push({
                     datetime: new Date(),
                     info: message,
@@ -218,7 +220,7 @@ module.exports = (router) => {
                     actionItem.state = state;
                   }
 
-                  lastSavePromise = actionItem.save();
+                  return actionItem.save();
                 });
               };
 

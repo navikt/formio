@@ -17,6 +17,7 @@ const debug = {
 };
 
 module.exports = (router) => {
+  const audit = router.formio.audit || (() => {});
   const hook = require('../util/hook')(router.formio);
   const {
     jwt: jwtConfig,
@@ -27,11 +28,13 @@ module.exports = (router) => {
    *
    * @param payload {Object}
    *   The decoded JWT.
+   * @param customSecret {String}
+   *   Optional secret.
    *
    * @return {String|Boolean}
    *   The JWT from the given payload, or false if the jwt payload is still valid.
    */
-  const getToken = (tokenInfo) => {
+  const getToken = (tokenInfo, customSecret) => {
     // Clone to make sure we don't change original.
     const payload = Object.assign({}, tokenInfo);
     delete payload.iat;
@@ -42,7 +45,7 @@ module.exports = (router) => {
       secret,
     } = jwtConfig;
 
-    return jwt.sign(payload, secret, {
+    return jwt.sign(payload, customSecret || secret, {
       expiresIn: expireTime * 60,
     });
   };
@@ -210,9 +213,11 @@ module.exports = (router) => {
   const authenticate = (req, forms, userField, passField, username, password, next) => {
     // Make sure they have provided a username and password.
     if (!username) {
+      audit('EAUTH_EMPTYUN', req);
       return next('Missing username');
     }
     if (!password) {
+      audit('EAUTH_EMPTYPW', req, username);
       return next('Missing password');
     }
 
@@ -244,16 +249,25 @@ module.exports = (router) => {
 
       const hash = _.get(user.data, passField);
       if (!hash) {
+        audit('EAUTH_BLANKPW', {
+          ...req,
+          userId: user._id,
+        }, username);
         return next('Your account does not have a password. You must reset your password to login.');
       }
 
       // Compare the provided password.
       bcrypt.compare(password, hash, (err, value) => {
         if (err) {
+          audit('EAUTH_BCRYPT', {
+            ...req,
+            userId: user._id
+          }, username, err);
           return next(err);
         }
 
         if (!value) {
+          audit('EAUTH_PASSWORD', req, user._id, username);
           return next('User or password was incorrect', {user});
         }
 
@@ -263,10 +277,18 @@ module.exports = (router) => {
           deleted: {$eq: null},
         }).lean().exec((err, form) => {
           if (err) {
+            audit('EAUTH_USERFORM', {
+              ...req,
+              userId: user._id,
+            }, user.form, err);
             return next(err);
           }
 
           if (!form) {
+            audit('EAUTH_USERFORM', {
+              ...req,
+              userId: user._id,
+            }, user.form, {message: 'User form not found'});
             return next('User form not found.');
           }
 

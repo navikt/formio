@@ -56,24 +56,27 @@ const noProxyDomains = (process.env.no_proxy || process.env.NO_PROXY || '')
  * @returns {boolean} Wether the url should be excluded from proxying or not.
  */
 function noProxy(url) {
-  const {protocol, host} = parseUrl(url);
+  const {protocol, hostname, host} = parseUrl(url);
   // If invalid url, just return true
-  if (!protocol || !host) {
+  if (!protocol || !host || !hostname) {
     return true;
   }
-  // Check if protocol does not match the available proxy
   if (protocol === 'http:' && httpProxy.host === null) {
     return true;
   }
   if (protocol === 'https:' && httpsProxy.host === null) {
     return true;
   }
-  return noProxyDomains.some((domain) => host.endsWith(domain));
+  return noProxyDomains.some(
+    (domain) => (host.endsWith(domain) || hostname.endsWith(domain))
+  );
 }
 
 module.exports = (url, options = {}) => {
   // Parse the request input information
   const input = parseUrl(url);
+
+  let {rejectUnauthorized} = options;
 
   // Check that the target url is a valid URL
   if (!input.host) {
@@ -104,8 +107,10 @@ module.exports = (url, options = {}) => {
   // Check if using HTTPS
   const isHTTPS = input.protocol === 'https:';
 
-  // Check if system is forcing invalid tls rejection (should be rejected by default)
-  const rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0';
+  if (typeof rejectUnauthorized === 'undefined') {
+     // Check if system is forcing invalid tls rejection (should be rejected by default)
+    rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0';
+  }
 
   // Check if we need to use http(s) proxy or not
   if (!noProxy(input)) {

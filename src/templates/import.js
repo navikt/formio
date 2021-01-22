@@ -137,12 +137,21 @@ module.exports = (router) => {
 
     let changes = false;
 
+    const getFormRevision = (_vid) => {
+      const formRevision = (parseInt(_vid, 10) + 1) || 1;
+      return formRevision.toString();
+    };
+
     const formName = entity.form;
     // Attempt to add a form.
     if (template.forms && template.forms[entity.form] && template.forms[entity.form]._id) {
       entity.form = template.forms[formName]._id.toString();
       if (template.forms[formName].hasOwnProperty('_vid') && template.forms[formName]._vid) {
         entity.formRevision = template.forms[formName]._vid.toString();
+      }
+      else if (template.forms[formName].revisions) {
+        // Make sure revision is set if revisions are enabled on the form
+        entity.formRevision = getFormRevision(template.forms[formName]._vid);
       }
       changes = true;
     }
@@ -152,6 +161,9 @@ module.exports = (router) => {
       entity.form = template.resources[entity.form]._id.toString();
       if (template.resources[formName].hasOwnProperty('_vid') && template.resources[formName]._vid) {
         entity.formRevision = template.resources[formName]._vid.toString();
+      }
+      else if (template.resources[formName].revisions) {
+        entity.formRevision = getFormRevision(template.resources[formName]._vid);
       }
       changes = true;
     }
@@ -400,6 +412,12 @@ module.exports = (router) => {
           ]
         };
         return hook.alter(`importFormQuery`, query, document, template);
+      },
+      deleteAllActions(form, done) {
+        const prun = require('../util/delete')(router);
+        prun.action(null, form).then(() => {
+          done();
+        });
       }
     },
     action: {
@@ -412,7 +430,11 @@ module.exports = (router) => {
         return false;
       },
       transform: (template, action) => {
-        resourceMachineNameToId(template, action.settings);
+        const isResourceChanged = resourceMachineNameToId(template, action.settings);
+        if (!isResourceChanged && action.settings && action.settings.resource) {
+          action.settings.resource = '';
+        }
+
         roleMachineNameToId(template, action.settings);
 
         // If no changes were made, the form was invalid and we can't insert the action.
@@ -519,7 +541,10 @@ module.exports = (router) => {
                 items[machineName] = result.toObject();
                 debug.save(machineName);
                 debug.save(items[machineName]);
-                next();
+                if (entity.hasOwnProperty('deleteAllActions')) {
+                  return entity.deleteAllActions(updatedDoc._id, next);
+                }
+                return next();
               });
             };
 

@@ -70,6 +70,7 @@ module.exports = (router) => {
     }),
     router.formio.middleware.ownerFilter,
     router.formio.middleware.submissionResourceAccessFilter,
+    router.formio.middleware.submissionFieldMatchAccessFilter,
     handlers.beforeIndex,
   ];
   handlers.afterIndex = [
@@ -119,12 +120,25 @@ module.exports = (router) => {
         if (!submission || !submission._id) {
           return res.status(404).send('Not found');
         }
+        // By default check permissions to access the endpoint.
+        const withoutPermissions = _.get(form, 'settings.allowExistsEndpoint', false);
 
-        // Send only the id as a response if the submission exists.
-        return res.status(200).json({
-          _id: submission._id.toString(),
-        });
+        if (withoutPermissions) {
+          // Send only the id as a response if the submission exists.
+          return res.status(200).json({
+            _id: submission._id.toString(),
+          });
+        }
+        else {
+          req.subId = submission._id.toString();
+          req.permissionsChecked = false;
+          return next();
+        }
       });
+    });
+  }, router.formio.middleware.permissionHandler, (req, res, next) => {
+    return res.status(200).json({
+      _id: req.subId,
     });
   });
 
