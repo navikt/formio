@@ -12,7 +12,17 @@ ned en GUI app under oppstart (installasjonsscript). Dette fungerer ikke av fler
 , hvorav en er at heroku ikke støtter skriving til disk. 
 Vi har derfor "hacket" til deployment ved å gjøre manuelle steg og så bygge docker container
 
-Man må først kjøre opp appen lokalt sånn at client folder lastes ned og installeres før man bygger docker
+Man må først kjøre opp appen lokalt sånn at client folder lastes ned og installeres før man bygger docker.
+Siden client appen konfigureres under installasjon må vi sette følgende environmentvariabler til
+de "korrekte" produksjons verdiene:
+
+`NODE_CONFIG='{"domain": "https://protected-island-44773.herokuapp.com"
+} npm start`
+
+Denne verdien brukes av UI'et til å gjøre API requester.
+
+Hvis man vil gjøre installasjonen på nytt så bare sletter man client folderen og kjører npm start på nytt.
+
 
 ## Docker deployment på Heroku
 Kjør kommandoene i prosjektfilen. Pass på branch.
